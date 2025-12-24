@@ -44,3 +44,12 @@ export const deleteRole = async (req, res) => {
     res.status(400).json({ success: false, message: error.message });
   }
 };
+
+export const getPermissions = async (req, res) => {
+  try {
+    const permissions = await RoleService.getPermissions()
+    res.json({ success: true, permissions })
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message })
+  }
+}

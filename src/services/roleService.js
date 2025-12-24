@@ -2,6 +2,7 @@ import Role from '../models/Role.js'
 import User from '../models/User.js'
 import Permission from '../models/Permission.js'
 import RolePermission from '../models/RolePermission.js'
+import sequelize from '../config/sequelize.js'
 
 class RoleService {
   // -----------------------------------------
@@ -64,23 +65,38 @@ class RoleService {
     const exists = await Role.findOne({ where: { name } })
     if (exists) throw new Error('Role with this name already exists')
 
-    const role = await Role.create({
-      name,
-      description: description || null,
-      isActive: isActive ?? true
-    })
+    // Use transaction
+    const t = await sequelize.transaction()
 
-    // Attach permissions (if provided)
-    if (permissionIds.length > 0) {
-      const rolePermissions = permissionIds.map(permissionId => ({
-        roleId: role.id,
-        permissionId
-      }))
+    try {
+      const role = await Role.create(
+        {
+          name,
+          description: description || null,
+          isActive: isActive ?? true
+        },
+        { transaction: t }
+      )
 
-      await RolePermission.bulkCreate(rolePermissions)
+      // Attach permissions (if provided)
+      if (permissionIds.length > 0) {
+        // ✅ Remove duplicates
+        const uniquePermissionIds = [...new Set(permissionIds)]
+        
+        const rolePermissions = uniquePermissionIds.map(permissionId => ({
+          roleId: role.id,
+          permissionId: Number(permissionId)
+        }))
+
+        await RolePermission.bulkCreate(rolePermissions, { transaction: t })
+      }
+
+      await t.commit()
+      return role
+    } catch (error) {
+      await t.rollback()
+      throw error
     }
-
-    return role
   }
 
   // -----------------------------------------
@@ -88,6 +104,8 @@ class RoleService {
   // -----------------------------------------
   async updateRole(id, data) {
     const { name, description, permissionIds, isActive } = data
+
+    console.log('🔄 [RoleService] Update request:', { id, name, description, permissionIds, isActive })
 
     const role = await Role.findByPk(id)
     if (!role) throw new Error('Role not found')
@@ -97,29 +115,75 @@ class RoleService {
       if (existing) throw new Error('Role with this name already exists')
     }
 
-    await role.update({
-      name: name ?? role.name,
-      description: description ?? role.description,
-      isActive: isActive ?? role.isActive
-    })
+    // Use transaction
+    const t = await sequelize.transaction()
 
-    // Update permissions if provided
-    if (Array.isArray(permissionIds)) {
-      // Remove old permissions
-      await RolePermission.destroy({ where: { roleId: id } })
+    try {
+      // Update role basic info
+      await role.update(
+        {
+          name: name ?? role.name,
+          description: description ?? role.description,
+          isActive: isActive ?? role.isActive
+        },
+        { transaction: t }
+      )
 
-      // Add new permissions
-      if (permissionIds.length > 0) {
-        const rolePermissions = permissionIds.map(permissionId => ({
-          roleId: id,
-          permissionId
-        }))
+      console.log('✅ [RoleService] Role basic info updated')
 
-        await RolePermission.bulkCreate(rolePermissions)
+      // Update permissions if provided
+      if (Array.isArray(permissionIds)) {
+        console.log('🔐 [RoleService] Updating permissions...')
+
+        // Remove old permissions
+        const deletedCount = await RolePermission.destroy({
+          where: { roleId: id },
+          transaction: t
+        })
+
+        console.log(`🗑️ [RoleService] Deleted ${deletedCount} old permissions`)
+
+        // Add new permissions
+        if (permissionIds.length > 0) {
+          // ✅ Remove duplicates and ensure numbers
+          const uniquePermissionIds = [...new Set(permissionIds.map(id => Number(id)))]
+          
+          console.log('🔍 [RoleService] Unique permission IDs:', uniquePermissionIds)
+
+          const rolePermissions = uniquePermissionIds.map(permissionId => ({
+            roleId: Number(id),
+            permissionId: permissionId
+          }))
+
+          console.log('📝 [RoleService] Inserting new permissions:', rolePermissions)
+
+          // ✅ Use ignoreDuplicates to prevent constraint errors
+          await RolePermission.bulkCreate(rolePermissions, { 
+            transaction: t,
+            ignoreDuplicates: true 
+          })
+
+          console.log(`✅ [RoleService] Inserted ${uniquePermissionIds.length} new permissions`)
+        } else {
+          console.log('⚠️ [RoleService] No permissions to insert')
+        }
+      } else {
+        console.log('⏭️ [RoleService] Skipping permission update (not provided)')
       }
-    }
 
-    return role
+      await t.commit()
+      console.log('✅ [RoleService] Transaction committed successfully')
+
+      // Verify the update
+      const updatedRole = await this.getRoleById(id)
+      console.log('🔍 [RoleService] Updated role with permissions:', updatedRole)
+
+      return updatedRole
+    } catch (error) {
+      await t.rollback()
+      console.error('❌ [RoleService] Transaction rolled back:', error)
+      throw error
+    }
   }
 
   // -----------------------------------------
@@ -134,11 +198,28 @@ class RoleService {
       throw new Error(`Cannot delete role. ${userCount} user(s) assigned.`)
     }
 
-    // Clean RBAC relations
-    await RolePermission.destroy({ where: { roleId: id } })
+    // Use transaction
+    const t = await sequelize.transaction()
 
-    await role.destroy()
-    return true
+    try {
+      // Clean RBAC relations
+      await RolePermission.destroy({ where: { roleId: id }, transaction: t })
+
+      await role.destroy({ transaction: t })
+
+      await t.commit()
+      return true
+    } catch (error) {
+      await t.rollback()
+      throw error
+    }
+  }
+
+ async getPermissions() {
+    return Permission.findAll({
+      attributes: ['id', 'key', 'name', 'createdAt'],
+      order: [['key', 'ASC']]
+    })
   }
 }
 

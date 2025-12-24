@@ -1,3 +1,4 @@
+// middleware/authMiddleware.js
 import jwt from 'jsonwebtoken'
 import { User, Role, Permission } from '../models/index.js'
 
@@ -19,8 +20,31 @@ export const protect = async (req, res, next) => {
       })
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    // ✅ TRY TO VERIFY TOKEN
+    let decoded
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET)
+    } catch (err) {
+      // 🔥 CRITICAL: Check if it's JUST expired (not invalid/tampered)
+      if (err.name === 'TokenExpiredError') {
+        console.log('⚠️ Token expired - sending 401 for client to refresh')
+        return res.status(401).json({
+          success: false,
+          message: 'Token expired',
+          code: 'TOKEN_EXPIRED' // ✅ Special code for frontend
+        })
+      }
 
+      // For other JWT errors (invalid signature, malformed, etc.)
+      console.error('❌ Invalid token:', err.message)
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token',
+        code: 'TOKEN_INVALID'
+      })
+    }
+
+    // ✅ TOKEN IS VALID - LOAD USER
     const user = await User.findByPk(decoded.id, {
       attributes: { exclude: ['password'] },
       include: [
@@ -55,9 +79,9 @@ export const protect = async (req, res, next) => {
     next()
   } catch (err) {
     console.error('AUTH MIDDLEWARE ERROR:', err.message)
-    return res.status(401).json({
+    return res.status(500).json({
       success: false,
-      message: 'Invalid or expired token'
+      message: 'Authentication error'
     })
   }
 }

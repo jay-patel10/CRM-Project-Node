@@ -14,7 +14,7 @@ export const up = async (queryInterface, Sequelize) => {
         key: 'id'
       },
       onUpdate: 'CASCADE',
-      onDelete: 'CASCADE'     // If user is deleted → delete tokens
+      onDelete: 'CASCADE'
     },
 
     token: {
@@ -27,14 +27,30 @@ export const up = async (queryInterface, Sequelize) => {
       allowNull: false
     },
 
+
+    isPasswordReset: {
+      type: Sequelize.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
+    },
+
+
+    resetTokenId: {
+      type: Sequelize.STRING,
+      allowNull: true,
+      defaultValue: null
+    },
+
     createdAt: {
       type: Sequelize.DATE,
-      allowNull: false
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
     },
 
     updatedAt: {
       type: Sequelize.DATE,
-      allowNull: false
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
     }
   });
 };

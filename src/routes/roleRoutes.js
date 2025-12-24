@@ -4,7 +4,8 @@ import {
   getRoleById,
   createRole,
   updateRole,
-  deleteRole
+  deleteRole,
+  getPermissions,
 } from '../controllers/roleController.js'
 
 import {
@@ -29,9 +30,12 @@ const router = express.Router()
   - roles.delete
 */
 
-// ============================
-// LIST ROLES – Permission based
-// ============================
+router.get(
+  '/permissions',
+  protect,
+  getPermissions
+)
+
 router.get(
   '/',
   protect,

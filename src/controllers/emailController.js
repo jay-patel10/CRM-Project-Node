@@ -51,3 +51,27 @@ export const deleteTemplate = async (req, res) => {
     res.status(400).json({ success: false, message: error.message })
   }
 }
+
+export const sendEmail = async (req, res) => {
+  try {
+    const { to, subject, body } = req.body
+
+    if (!to || !subject || !body) {
+      return res.status(400).json({ message: 'Missing fields' })
+    }
+
+    // 🔹 Use a GENERIC template OR bypass template (Stage 1)
+    await EmailService.sendTemplateEmail({
+      to,
+      templateSlug: 'generic-email', // we’ll create this once
+      variables: {
+        subject,
+        body
+      }
+    })
+
+    return res.json({ message: 'Email sent successfully' })
+  } catch (error) {
+    return res.status(500).json({ message: error.message })
+  }
+}

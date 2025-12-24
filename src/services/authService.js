@@ -24,7 +24,7 @@ class AuthService {
         role: user.role?.name || 'user'
       },
       process.env.JWT_SECRET,
-      { expiresIn: '15m' }
+      { expiresIn: '1m' }
     );
   }
 
@@ -32,25 +32,25 @@ class AuthService {
   // GENERATE REFRESH TOKEN
   // ===========================
   async generateRefreshToken(userId) {
-    // Generate raw token
-    const rawToken = crypto.randomBytes(40).toString('hex');
-    
-    // Calculate expiry (7 days from now)
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+  const rawToken = crypto.randomBytes(40).toString('hex');
+  
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 7);
 
-    // Delete old refresh tokens for this user
-    await RefreshToken.destroy({ where: { userId } });
+  await RefreshToken.destroy({ where: { userId } });
 
-    // Create new refresh token (will be hashed by hook)
-    await RefreshToken.create({
-      userId,
-      token: rawToken,
-      expiresAt
-    });
+  // Hash BEFORE saving (remove model hook or ensure it's not double-hashing)
+  const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
 
-    return rawToken; // Return the raw token to send to client
-  }
+  await RefreshToken.create({
+    userId,
+    token: hashedToken, // ✅ Store hashed
+    expiresAt
+  });
+
+  return rawToken; // ✅ Return raw token to client
+}
+
 
   // ===========================
   // LOGIN USER
@@ -225,67 +225,142 @@ class AuthService {
     return { message: 'Logged out successfully' };
   }
 
-  // ===========================
-  // FORGOT PASSWORD (STATELESS)
-  // ===========================
-  async forgotPassword(email) {
-  const user = await User.findOne({ where: { email } })
-  if (!user) throw new Error('User does not exist')
+ async forgotPassword(email) {
+    const user = await User.findOne({ where: { email } });
+    if (!user) throw new Error('User does not exist');
 
-  const resetToken = jwt.sign(
-    { id: user.id },
-    process.env.JWT_RESET_SECRET,
-    { expiresIn: '15m' }
-  )
+    // 1️⃣ Generate ONE-TIME reset ID
+    const resetTokenId = crypto.randomBytes(32).toString('hex');
+    console.log('🔑 Generated resetTokenId:', resetTokenId.substring(0, 10) + '...');
 
-const resetLink = `${process.env.FRONTEND_URL}/en/reset-password?token=${resetToken}`
+    // 2️⃣ Create JWT (short lived)
+    const resetToken = jwt.sign(
+      { id: user.id, tokenId: resetTokenId },
+      process.env.JWT_RESET_SECRET,
+      { expiresIn: '15m' }
+    );
 
-  // ✅ SEND EMAIL
-  await EmailService.sendTemplateEmail({
-    to: user.email,
-    templateSlug: 'password-reset',
-    variables: {
-      name: user.name || 'User',
-      resetLink
-    }
-  })
+    // 3️⃣ Hash resetTokenId ONLY (not JWT)
+    const hashedResetTokenId = crypto
+      .createHash('sha256')
+      .update(resetTokenId)
+      .digest('hex');
+    console.log('🔒 Hashed resetTokenId:', hashedResetTokenId.substring(0, 10) + '...');
 
-  return { message: 'Password reset link sent to email' }
-}
+    // 4️⃣ Save on user (plain, not hashed)
+    user.resetTokenId = resetTokenId;
+    user.resetTokenCreatedAt = new Date();
+    await user.save();
+    console.log('✅ Saved plain resetTokenId to user table');
 
+    // 5️⃣ Store hashed resetTokenId in RefreshToken (with isPasswordReset flag)
+    await RefreshToken.create({
+      userId: user.id,
+      token: hashedResetTokenId, // Already hashed - model hook will skip
+      isPasswordReset: true,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000)
+    });
+    console.log('✅ Saved hashed resetTokenId to refresh_tokens table');
 
-  // ===========================
-  // RESET PASSWORD (STATELESS)
-  // ===========================
-  async resetPassword({ token, newPassword }) {
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_RESET_SECRET)
+    // 6️⃣ Send email
+    const resetLink = `${process.env.FRONTEND_URL}/en/reset-password?token=${resetToken}`;
 
-    const user = await User.findByPk(decoded.id)
-    if (!user) throw new Error('User not found')
+    await EmailService.sendTemplateEmail({
+      to: user.email,
+      templateSlug: 'password-reset',
+      variables: {
+        name: user.name || 'User',
+        resetLink
+      }
+    });
 
-    // 🔐 CHECK IF TOKEN WAS USED BEFORE
-    if (user.passwordResetAt) {
-      throw new Error('Reset link already used')
-    }
-
-    // 🔐 HASH PASSWORD
-    const hashed = await bcrypt.hash(newPassword, 10)
-    user.password = hashed
-
-    // 🔐 MARK TOKEN AS USED
-    user.passwordResetAt = new Date()
-    await user.save()
-
-    // 🔐 LOGOUT EVERYWHERE
-    await RefreshToken.destroy({ where: { userId: user.id } })
-
-    return { message: 'Password updated successfully' }
-  } catch (err) {
-    throw new Error('Invalid or expired reset token')
+    return { message: 'Password reset link sent to email' };
   }
-}
 
+  // ===========================
+  // RESET PASSWORD
+  // ===========================
+    async resetPassword({ token, newPassword }) {
+    try {
+      // 1️⃣ Verify reset JWT
+      const decoded = jwt.verify(token, process.env.JWT_RESET_SECRET)
+      console.log('✅ JWT verified for user:', decoded.id)
+
+      // 2️⃣ Hash tokenId from JWT
+      const hashedResetTokenId = crypto
+        .createHash('sha256')
+        .update(decoded.tokenId)
+        .digest('hex')
+
+      // 3️⃣ Validate one-time token from DB
+      const tokenRecord = await RefreshToken.findOne({
+        where: {
+          userId: decoded.id,
+          token: hashedResetTokenId,
+          isPasswordReset: true
+        }
+      })
+
+      if (!tokenRecord) {
+        throw new Error('Reset link already used or invalid')
+      }
+
+      // 4️⃣ Expiry check
+      if (tokenRecord.expiresAt < new Date()) {
+        await RefreshToken.destroy({ where: { id: tokenRecord.id } })
+        throw new Error('Reset link has expired')
+      }
+
+      // 5️⃣ Fetch user
+      const user = await User.findByPk(decoded.id)
+      if (!user) {
+        throw new Error('User not found')
+      }
+
+      // 6️⃣ Update password
+      user.password = await bcrypt.hash(newPassword, 10)
+      user.passwordResetAt = new Date()
+      await user.save()
+
+      // 7️⃣ Invalidate token (ONE-TIME use)
+      await RefreshToken.destroy({
+        where: { id: tokenRecord.id }
+      })
+
+      return { message: 'Password updated successfully' }
+
+    } catch (err) {
+      console.error('❌ RESET PASSWORD ERROR:', err.message)
+
+      if (err.name === 'TokenExpiredError') {
+        throw new Error('Reset link has expired')
+      }
+
+      if (err.name === 'JsonWebTokenError') {
+        throw new Error('Invalid reset token')
+      }
+
+      throw new Error(err.message)
+    }
+  }
+
+  // ===========================
+  // CLEANUP EXPIRED RESET TOKENS (Optional Cron Job)
+  // ===========================
+  async cleanupExpiredResetTokens() {
+    const now = new Date();
+    
+    // Delete expired reset tokens from RefreshToken table
+    const deleted = await RefreshToken.destroy({
+      where: {
+        isPasswordReset: true,
+        expiresAt: { [Op.lt]: now }
+      }
+    });
+
+    console.log(`🧹 Cleaned up ${deleted} expired reset tokens`);
+    return deleted;
+  }
 }
 
 export default new AuthService();

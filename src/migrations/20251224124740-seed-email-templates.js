@@ -1,8 +1,11 @@
 export const up = async (queryInterface, Sequelize) => {
+  // 🔹 Remove existing templates first (if any)
+  await queryInterface.bulkDelete('email_templates', {
+    slug: ['password-reset', 'generic-email']
+  })
+
+  // 🔹 Insert fresh data
   await queryInterface.bulkInsert('email_templates', [
-    // ----------------------------------
-    // PASSWORD RESET TEMPLATE
-    // ----------------------------------
     {
       name: 'Password Reset',
       slug: 'password-reset',
@@ -27,10 +30,6 @@ export const up = async (queryInterface, Sequelize) => {
       createdAt: new Date(),
       updatedAt: new Date()
     },
-
-    // ----------------------------------
-    // GENERIC EMAIL TEMPLATE
-    // ----------------------------------
     {
       name: 'Generic Email',
       slug: 'generic-email',

@@ -62,30 +62,28 @@ export const register = async (req, res) => {
 // ===========================
 // REFRESH TOKEN
 // ===========================
-export const refreshToken = async (req, res) => {
+// controllers/authController.js
+export const refresh = async (req, res) => {
   try {
-    console.log('🔄 REFRESH TOKEN REQUEST');
-    
-    const data = await AuthService.refresh(req.body.refreshToken);
-    
-    console.log('✅ TOKEN REFRESHED:', data.user.email);
+    const { refreshToken } = req.body
 
+    if (!refreshToken) {
+      return res.status(400).json({ message: 'Refresh token required' })
+    }
+
+    const result = await AuthService.refresh(refreshToken)
+
+    // ✅ Ensure we return the same structure as login
     return res.json({
-      success: true,
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken,
-      user: data.user
-    });
-  } catch (err) {
-    console.error('❌ REFRESH TOKEN ERROR:', err.message);
-    
-    return res.status(401).json({
-      success: false,
-      message: err.message
-    });
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      user: result.user
+    })
+  } catch (error) {
+    console.error('REFRESH ERROR:', error.message)
+    return res.status(401).json({ message: error.message })
   }
-};
-
+}
 // ===========================
 // LOGOUT
 // ===========================
@@ -162,3 +160,4 @@ export const resetPassword = async (req, res) => {
     });
   }
 };
+
