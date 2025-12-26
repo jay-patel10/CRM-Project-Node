@@ -1,54 +1,54 @@
-export const up = async (queryInterface, Sequelize) => {
-  // 🔹 Remove existing templates first (if any)
-  await queryInterface.bulkDelete('email_templates', {
-    slug: ['password-reset', 'generic-email']
-  })
+import EmailTemplate from '../models/EmailTemplate.js'
 
-  // 🔹 Insert fresh data
-  await queryInterface.bulkInsert('email_templates', [
+export const up = async () => {
+  await EmailTemplate.bulkCreate(
+    [
+      {
+        name: 'Password Reset',
+        slug: 'password-reset',
+        subject: 'Reset Your Password',
+        body: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
+          <h2>Password Reset Request</h2>
+          <p>Hi {{name}},</p>
+          <p>You requested to reset your password.</p>
+          <a href="{{resetLink}}"
+             style="display:inline-block;padding:12px 24px;background:#7367F0;color:#fff;text-decoration:none;border-radius:4px;">
+            Reset Password
+          </a>
+          <p style="font-size:13px;color:#999;">Link expires in 15 minutes.</p>
+        </div>
+        `,
+        variables: ['name', 'resetLink'],
+        isActive: true
+      },
+      {
+        name: 'Generic Email',
+        slug: 'generic-email',
+        subject: '{{subject}}',
+        body: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin:auto; padding: 24px; border:1px solid #e5e7eb;">
+          <h2>{{subject}}</h2>
+          <div style="margin-top:16px;">{{body}}</div>
+          <hr />
+          <p style="font-size:12px;color:#9ca3af;">CRM System</p>
+        </div>
+        `,
+        variables: ['subject', 'body'],
+        isActive: true
+      }
+    ],
     {
-      name: 'Password Reset',
-      slug: 'password-reset',
-      subject: 'Reset Your Password',
-      body: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2>Password Reset Request</h2>
-        <p>Hi {{name}},</p>
-        <p>You requested to reset your password. Click the button below to reset it:</p>
-        <a href="{{resetLink}}"
-           style="display: inline-block; padding: 12px 24px; background-color: #7367F0;
-           color: white; text-decoration: none; border-radius: 4px; margin: 20px 0;">
-          Reset Password
-        </a>
-        <p>This link will expire in 15 minutes.</p>
-        <p>If you didn’t request this, please ignore this email.</p>
-        <p>Thanks,<br/>CRM Team</p>
-      </div>
-      `,
-      variables: JSON.stringify(['name', 'resetLink']),
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    },
-    {
-      name: 'Generic Email',
-      slug: 'generic-email',
-      subject: '{{subject}}',
-      body: `
-      <div style="font-family: Arial;">
-        {{body}}
-      </div>
-      `,
-      variables: JSON.stringify(['subject', 'body']),
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      validate: false,   // 🔥 THIS IS THE KEY
+      ignoreDuplicates: true
     }
-  ])
+  )
 }
 
-export const down = async queryInterface => {
-  await queryInterface.bulkDelete('email_templates', {
-    slug: ['password-reset', 'generic-email']
+export const down = async () => {
+  await EmailTemplate.destroy({
+    where: {
+      slug: ['password-reset', 'generic-email']
+    }
   })
 }

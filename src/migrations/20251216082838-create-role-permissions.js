@@ -1,55 +1,43 @@
 export const up = async (queryInterface, Sequelize) => {
-  await queryInterface.bulkInsert('email_templates', [
-    // ----------------------------------
-    // PASSWORD RESET TEMPLATE
-    // ----------------------------------
-    {
-      name: 'Password Reset',
-      slug: 'password-reset',
-      subject: 'Reset Your Password',
-      body: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2>Password Reset Request</h2>
-        <p>Hi {{name}},</p>
-        <p>You requested to reset your password. Click the button below to reset it:</p>
-        <a href="{{resetLink}}"
-           style="display: inline-block; padding: 12px 24px; background-color: #7367F0;
-           color: white; text-decoration: none; border-radius: 4px; margin: 20px 0;">
-          Reset Password
-        </a>
-        <p>This link will expire in 15 minutes.</p>
-        <p>If you didn’t request this, please ignore this email.</p>
-        <p>Thanks,<br/>CRM Team</p>
-      </div>
-      `,
-      variables: JSON.stringify(['name', 'resetLink']),
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date()
+  await queryInterface.createTable('role_permissions', {
+    id: {
+      type: Sequelize.INTEGER,
+      autoIncrement: true,
+      primaryKey: true,
     },
 
-    // ----------------------------------
-    // GENERIC EMAIL TEMPLATE
-    // ----------------------------------
-    {
-      name: 'Generic Email',
-      slug: 'generic-email',
-      subject: '{{subject}}',
-      body: `
-      <div style="font-family: Arial;">
-        {{body}}
-      </div>
-      `,
-      variables: JSON.stringify(['subject', 'body']),
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
-  ])
-}
+    roleId: {
+      type: Sequelize.INTEGER,
+      allowNull: false,
+      references: {
+        model: 'roles',
+        key: 'id',
+      },
+      onDelete: 'CASCADE',
+    },
 
-export const down = async queryInterface => {
-  await queryInterface.bulkDelete('email_templates', {
-    slug: ['password-reset', 'generic-email']
-  })
-}
+    permissionId: {
+      type: Sequelize.INTEGER,
+      allowNull: false,
+      references: {
+        model: 'permissions',
+        key: 'id',
+      },
+      onDelete: 'CASCADE',
+    },
+
+    createdAt: {
+      type: Sequelize.DATE,
+      allowNull: false,
+    },
+
+    updatedAt: {
+      type: Sequelize.DATE,
+      allowNull: false,
+    },
+  });
+};
+
+export const down = async (queryInterface) => {
+  await queryInterface.dropTable('role_permissions');
+};

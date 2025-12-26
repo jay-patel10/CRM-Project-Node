@@ -10,16 +10,16 @@ import {
 const router = express.Router()
 
 // ============================
-// SEND EMAIL (TESTING MODE)
+// SEND EMAIL (PROTECTED)
 // ============================
-router.post('/send', sendEmail)
+router.post('/send',  sendEmail)
 
 // ============================
 // EMAIL TEMPLATES CRUD
 // ============================
 
 // Get all templates
-router.get('/', getTemplates)
+router.get('/templates',getTemplates)
 
 // Create template
 router.post('/', createTemplate)

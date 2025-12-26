@@ -11,6 +11,7 @@ import userRoutes from './routes/userRoutes.js';
 import roleRoutes from './routes/roleRoutes.js'
 import leadRoutes from './routes/leadRoutes.js'
 import emailRoutes from './routes/emailRoutes.js'
+import subscriptionRoutes from './routes/subscriptionRoutes.js';
 
 // import leadRoutes from './routes/leadRoutes.js'; // enable when ready
 
@@ -43,6 +44,7 @@ app.use('/users', userRoutes);
 app.use('/roles', roleRoutes)
 app.use('/leads', leadRoutes);
 app.use('/emails', emailRoutes)
+app.use('/subscriptions', subscriptionRoutes);
 
 // ================================
 // Health Check Route
