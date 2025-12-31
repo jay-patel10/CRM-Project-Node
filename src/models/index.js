@@ -91,6 +91,12 @@ Subscription.hasMany(Payment, { foreignKey: 'subscriptionId', as: 'payments' })
 RefreshToken.belongsTo(User, { foreignKey: 'userId', as: 'user' })
 User.hasMany(RefreshToken, { foreignKey: 'userId', as: 'refreshTokens' })
 
+// -----------------------------
+// ApiKey <-> User
+// -----------------------------
+ApiKey.belongsTo(User, { foreignKey: 'userId', as: 'user' })
+User.hasMany(ApiKey, { foreignKey: 'userId', as: 'apiKeys' })
+
 export {
   sequelize,
   User,

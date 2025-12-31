@@ -265,6 +265,56 @@ class LeadService {
       order: [['id', 'ASC']]
     })
   }
+
+  async getLeadStatistics() {
+    try {
+      // Total leads
+      const totalLeads = await Lead.count()
+
+      // Leads with UTM data
+      const withUTM = await Lead.count({
+        where: {
+          [Op.or]: [
+            { utmSource: { [Op.ne]: null } },
+            { utmMedium: { [Op.ne]: null } },
+            { utmCampaign: { [Op.ne]: null } }
+          ]
+        }
+      })
+
+      // Top sources - Get raw data with count
+      const sourcesRaw = await Lead.findAll({
+        attributes: [
+          'source',
+          [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+        ],
+        where: {
+          source: { [Op.ne]: null }
+        },
+        group: ['source'],
+        order: [[sequelize.literal('count'), 'DESC']],
+        limit: 5,
+        raw: true
+      })
+
+      // Format sources
+      const sources = sourcesRaw.map(s => ({
+        name: s.source || 'Unknown',
+        count: parseInt(s.count) || 0
+      }))
+
+      return {
+        totalLeads,
+        withUTM,
+        sources
+      }
+    } catch (error) {
+      console.error('Error fetching lead statistics:', error)
+      throw error
+    }
+  }
 }
+
+
 
 export default new LeadService()

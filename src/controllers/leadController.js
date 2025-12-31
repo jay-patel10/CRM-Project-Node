@@ -195,3 +195,20 @@ export const getMyLeads = async (req, res) => {
     });
   }
 };
+
+export const getLeadStats = async (req, res) => {
+  try {
+    const stats = await leadService.getLeadStatistics()
+
+    res.json({
+      success: true,
+      stats
+    })
+  } catch (error) {
+    console.error('Get lead stats error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch lead statistics'
+    })
+  }
+}

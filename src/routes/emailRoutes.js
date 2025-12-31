@@ -22,12 +22,12 @@ router.post('/send',  sendEmail)
 router.get('/templates',getTemplates)
 
 // Create template
-router.post('/', createTemplate)
+router.post('/templates', createTemplate)
 
 // Update template
 router.put('/:id', updateTemplate)
 
 // Delete template
-router.delete('/:id', deleteTemplate)
+router.delete('/templates/:id', deleteTemplate)
 
 export default router

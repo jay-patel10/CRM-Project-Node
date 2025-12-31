@@ -71,7 +71,11 @@ export const up = async (queryInterface) => {
     { id: 11, key: 'leads.update', name: 'Update Leads' },
     { id: 12, key: 'leads.delete', name: 'Delete Leads' },
     { id: 13, key: 'settings.read', name: 'Read Settings' },
-    { id: 14, key: 'settings.update', name: 'Update Settings' }
+    { id: 14, key: 'settings.update', name: 'Update Settings' },
+    { id: 15, key: 'api_keys.read', name: 'Read API Keys' },
+    { id: 16, key: 'api_keys.create', name: 'Create API Keys' },
+    { id: 17, key: 'api_keys.update', name: 'Update API Keys' },
+    { id: 18, key: 'api_keys.delete', name: 'Delete API Keys' }
   ]
 
   await queryInterface.bulkInsert(

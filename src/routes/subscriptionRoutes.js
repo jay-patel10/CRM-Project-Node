@@ -1,43 +1,45 @@
-// FILE: src/routes/subscriptionRoutes.js
+// ==========================================
+// FILE: src/routes/subscriptionRoutes.js (COMPLETE FILE)
 // ==========================================
 import express from 'express';
 import {
   getAllPlans,
-  getPlanById,
   createPlan,
   updatePlan,
   deletePlan,
   getUserSubscription,
-  getAllUserSubscriptions,
-  createSubscription,
+  createPaymentIntent,
+  confirmPayment,
   cancelSubscription,
   getUserPayments,
   getAllPayments,
-  handleStripeWebhook,
-  getSubscriptionStats
+  toggleAutoRenew,
+  getAllSubscriptions,
+  adminCancelSubscription,
+  adminToggleAutoRenew
 } from '../controllers/subscriptionController.js';
 
 const router = express.Router();
 
-// ========== PUBLIC ROUTES ==========
+// ===== PUBLIC ROUTES =====
 router.get('/plans', getAllPlans);
-router.get('/plans/:id', getPlanById);
 
-// ========== STRIPE WEBHOOK (NO AUTH) ==========
-router.post('/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
+// ===== USER ROUTES (Authenticated) =====
 
-// ========== AUTHENTICATED USER ROUTES ==========
-
-// User's subscription management
+// User subscription management
 router.get('/my-subscription', getUserSubscription);
-router.get('/my-subscriptions', getAllUserSubscriptions);
-router.post('/subscribe', createSubscription);
+router.post('/subscribe', createPaymentIntent);
+router.post('/create-payment-intent', createPaymentIntent);
+router.post('/confirm-payment', confirmPayment);
 router.delete('/subscriptions/:id', cancelSubscription);
 
-// User's payment history
+// User toggle auto-renew
+router.put('/toggle-auto-renew', toggleAutoRenew);
+
+// User payment history
 router.get('/my-payments', getUserPayments);
 
-// ========== ADMIN ONLY ROUTES ==========
+// ===== ADMIN ROUTES =====
 
 // Plan management
 router.post('/plans', createPlan);
@@ -47,7 +49,13 @@ router.delete('/plans/:id', deletePlan);
 // All payments (admin)
 router.get('/payments', getAllPayments);
 
-// Analytics
-router.get('/stats', getSubscriptionStats);
+// All subscriptions (admin)
+router.get('/all-subscriptions', getAllSubscriptions);
+
+// Admin cancel any subscription
+router.delete('/admin/subscriptions/:id', adminCancelSubscription);
+
+// Admin toggle auto-renew for any user
+router.put('/admin/toggle-auto-renew', adminToggleAutoRenew);
 
 export default router;

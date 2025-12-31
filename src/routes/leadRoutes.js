@@ -6,7 +6,8 @@ import {
   updateLead,
   deleteLead,
   getLeadStatuses,
-  getMyLeads
+  getMyLeads,
+  getLeadStats 
 } from '../controllers/leadController.js'
 
 import {
@@ -98,5 +99,8 @@ router.delete(
   authorizeRoleOrPermission([1], ['leads.delete']),
   deleteLead
 )
+
+router.get('/stats', getLeadStats)
+
 
 export default router

@@ -1,10 +1,9 @@
 // ==========================================
-// FILE: src/controllers/subscriptionController.js
+// FILE: src/controllers/subscriptionController.js (COMPLETE FILE)
 // ==========================================
 import subscriptionService from '../services/subscriptionService.js';
-import stripe from '../config/stripe.js';
 
-// ========== SUBSCRIPTION PLANS ==========
+// ========== PLANS ==========
 
 export const getAllPlans = async (req, res) => {
   try {
@@ -15,20 +14,13 @@ export const getAllPlans = async (req, res) => {
   }
 };
 
-export const getPlanById = async (req, res) => {
-  try {
-    const plan = await subscriptionService.getPlanById(req.params.id);
-    res.json({ success: true, data: plan });
-  } catch (error) {
-    res.status(404).json({ success: false, message: error.message });
-  }
-};
-
 export const createPlan = async (req, res) => {
   try {
+    console.log('📥 Received plan data:', req.body);
     const plan = await subscriptionService.createPlan(req.body);
     res.status(201).json({ success: true, data: plan });
   } catch (error) {
+    console.error('❌ Create plan error:', error.message);
     res.status(400).json({ success: false, message: error.message });
   }
 };
@@ -51,58 +43,137 @@ export const deletePlan = async (req, res) => {
   }
 };
 
-// ========== USER SUBSCRIPTIONS ==========
+// ========== SUBSCRIPTIONS ==========
 
 export const getUserSubscription = async (req, res) => {
   try {
-    const subscription = await subscriptionService.getUserSubscription(req.user.id);
-    res.json({ success: true, data: subscription });
+    const userId = req.query.userId || req.body.userId;
+    
+    if (!userId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'User ID is required' 
+      });
+    }
+
+    const sub = await subscriptionService.getUserSubscription(userId);
+    res.json({ success: true, data: sub });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-export const getAllUserSubscriptions = async (req, res) => {
+export const createPaymentIntent = async (req, res) => {
   try {
-    const subscriptions = await subscriptionService.getAllUserSubscriptions(req.user.id);
-    res.json({ success: true, data: subscriptions });
+    const { planId, userId } = req.body;
+    
+    console.log('💳 Creating payment intent for user:', userId, 'plan:', planId);
+    
+    if (!planId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Plan ID is required' 
+      });
+    }
+
+    if (!userId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'User ID is required' 
+      });
+    }
+
+    const result = await subscriptionService.createPaymentIntent(userId, planId);
+    res.json({ success: true, data: result });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error('❌ Payment intent error:', error.message);
+    res.status(400).json({ success: false, message: error.message });
   }
 };
 
-export const createSubscription = async (req, res) => {
+export const confirmPayment = async (req, res) => {
   try {
-    const { planId } = req.body;
-    const result = await subscriptionService.createSubscription(req.user.id, planId);
-    res.status(201).json({ success: true, data: result });
+    const { subscriptionId, paymentIntentId, userId } = req.body;
+    
+    if (!subscriptionId || !paymentIntentId || !userId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Subscription ID, Payment Intent ID, and User ID are required' 
+      });
+    }
+
+    const result = await subscriptionService.confirmPayment(
+      userId, 
+      subscriptionId, 
+      paymentIntentId
+    );
+    res.json({ success: true, data: result });
   } catch (error) {
+    console.error('❌ Confirm payment error:', error.message);
     res.status(400).json({ success: false, message: error.message });
   }
 };
 
 export const cancelSubscription = async (req, res) => {
   try {
-    const subscription = await subscriptionService.cancelSubscription(
-      req.user.id,
-      req.params.id
-    );
-    res.json({ success: true, data: subscription });
+    const { userId } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'User ID is required' 
+      });
+    }
+
+    const sub = await subscriptionService.cancelSubscription(userId, req.params.id);
+    res.json({ success: true, data: sub });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }
 };
 
-// ========== PAYMENT HISTORY ==========
+// ========== NEW: TOGGLE AUTO-RENEW ==========
+
+export const toggleAutoRenew = async (req, res) => {
+  try {
+    const { subscriptionId, userId, autoRenew } = req.body;
+    
+    console.log('📥 Toggle auto-renew request:', req.body);
+    
+    if (!subscriptionId || !userId || autoRenew === undefined) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Subscription ID, User ID, and autoRenew status are required' 
+      });
+    }
+
+    const subscription = await subscriptionService.toggleAutoRenew(
+      userId, 
+      subscriptionId, 
+      autoRenew
+    );
+    
+    res.json({ success: true, data: subscription });
+  } catch (error) {
+    console.error('❌ Toggle auto-renew error:', error.message);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// ========== PAYMENTS ==========
 
 export const getUserPayments = async (req, res) => {
   try {
-    const { status, gateway, limit } = req.query;
-    const payments = await subscriptionService.getUserPayments(req.user.id, {
-      status,
-      gateway,
-      limit: parseInt(limit) || 50
-    });
+    const userId = req.query.userId;
+    
+    if (!userId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'User ID is required' 
+      });
+    }
+
+    const payments = await subscriptionService.getUserPayments(userId, req.query);
     res.json({ success: true, data: payments });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -111,50 +182,76 @@ export const getUserPayments = async (req, res) => {
 
 export const getAllPayments = async (req, res) => {
   try {
-    const { status, gateway, userId, limit } = req.query;
-    const payments = await subscriptionService.getAllPayments({
-      status,
-      gateway,
-      userId: userId ? parseInt(userId) : undefined,
-      limit: parseInt(limit) || 100
-    });
+    const payments = await subscriptionService.getAllPayments(req.query);
     res.json({ success: true, data: payments });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// ========== STRIPE WEBHOOKS ==========
+// ========== NEW: ADMIN - GET ALL SUBSCRIPTIONS ==========
 
-export const handleStripeWebhook = async (req, res) => {
-  const sig = req.headers['stripe-signature'];
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-  let event;
-
+export const getAllSubscriptions = async (req, res) => {
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
-  } catch (err) {
-    console.error('Webhook signature verification failed:', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-
-  try {
-    await subscriptionService.handleStripeWebhook(event);
-    res.json({ received: true });
+    const { status, planId, userId } = req.query;
+    
+    console.log('📊 Admin fetching all subscriptions with filters:', req.query);
+    
+    const subscriptions = await subscriptionService.getAllSubscriptions({
+      status,
+      planId: planId ? parseInt(planId) : undefined,
+      userId: userId ? parseInt(userId) : undefined
+    });
+    
+    console.log(`✅ Found ${subscriptions.length} subscriptions`);
+    
+    res.json({ success: true, data: subscriptions });
   } catch (error) {
-    console.error('Webhook processing failed:', error);
+    console.error('❌ Get all subscriptions error:', error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// ========== ANALYTICS ==========
+// ========== NEW: ADMIN - CANCEL ANY SUBSCRIPTION ==========
 
-export const getSubscriptionStats = async (req, res) => {
+export const adminCancelSubscription = async (req, res) => {
   try {
-    const stats = await subscriptionService.getSubscriptionStats();
-    res.json({ success: true, data: stats });
+    const subscriptionId = req.params.id;
+    
+    console.log('🔴 Admin cancelling subscription:', subscriptionId);
+    
+    const subscription = await subscriptionService.adminCancelSubscription(subscriptionId);
+    
+    res.json({ success: true, data: subscription });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error('❌ Admin cancel error:', error.message);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// ========== NEW: ADMIN - TOGGLE AUTO-RENEW FOR ANY USER ==========
+
+export const adminToggleAutoRenew = async (req, res) => {
+  try {
+    const { subscriptionId, autoRenew } = req.body;
+    
+    console.log('🔄 Admin toggling auto-renew:', { subscriptionId, autoRenew });
+    
+    if (!subscriptionId || autoRenew === undefined) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Subscription ID and autoRenew status are required' 
+      });
+    }
+
+    const subscription = await subscriptionService.adminToggleAutoRenew(
+      subscriptionId, 
+      autoRenew
+    );
+    
+    res.json({ success: true, data: subscription });
+  } catch (error) {
+    console.error('❌ Admin toggle auto-renew error:', error.message);
+    res.status(400).json({ success: false, message: error.message });
   }
 };
