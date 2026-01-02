@@ -373,6 +373,101 @@ class SubscriptionService {
     
     return subscription;
   }
+  
+  // ========== STRIPE WEBHOOK ENTRY POINT ==========
+async handleStripeEvent(event) {
+  console.log('🔔 Handling Stripe event:', event.type);
+
+  switch (event.type) {
+    case 'payment_intent.succeeded':
+      return this.onPaymentIntentSucceeded(event.data.object);
+
+    case 'payment_intent.payment_failed':
+      return this.onPaymentIntentFailed(event.data.object);
+
+    case 'invoice.payment_succeeded':
+      return this.onInvoicePaymentSucceeded(event.data.object);
+
+    case 'invoice.payment_failed':
+      return this.onInvoicePaymentFailed(event.data.object);
+
+    case 'customer.subscription.updated':
+      return this.onSubscriptionUpdated(event.data.object);
+
+    case 'customer.subscription.deleted':
+      return this.onSubscriptionDeleted(event.data.object);
+
+    default:
+      console.log('ℹ️ Unhandled Stripe event:', event.type);
+  }
+}
+  async onPaymentIntentSucceeded(paymentIntent) {
+  console.log('💰 PaymentIntent succeeded:', paymentIntent.id);
+
+  const subscription = await Subscription.findOne({
+    where: { stripeSubscriptionId: paymentIntent.id }
+  });
+
+  if (!subscription) {
+    console.warn('⚠️ No subscription found for PI:', paymentIntent.id);
+    return;
+  }
+
+  await subscription.update({ status: 'active' });
+
+  await Payment.update(
+    { status: 'success' },
+    {
+      where: {
+        subscriptionId: subscription.id,
+        gatewayTransactionId: paymentIntent.id
+      }
+    }
+  );
+
+  console.log('✅ Subscription activated:', subscription.id);
+}
+
+async onPaymentIntentFailed(paymentIntent) {
+  console.log('❌ PaymentIntent failed:', paymentIntent.id);
+
+  await Payment.update(
+    { status: 'failed' },
+    {
+      where: {
+        gatewayTransactionId: paymentIntent.id,
+        gateway: 'stripe'
+      }
+    }
+  );
+}
+
+async onInvoicePaymentSucceeded(invoice) {
+  console.log('🔁 Invoice payment succeeded for subscription:', invoice.subscription);
+}
+
+async onInvoicePaymentFailed(invoice) {
+  console.log('🔁 Invoice payment failed for subscription:', invoice.subscription);
+}
+
+async onSubscriptionUpdated(stripeSubscription) {
+  console.log('🔄 Stripe subscription updated:', stripeSubscription.id);
+
+  await Subscription.update(
+    { status: stripeSubscription.status },
+    { where: { stripeSubscriptionId: stripeSubscription.id } }
+  );
+}
+
+async onSubscriptionDeleted(stripeSubscription) {
+  console.log('🗑️ Stripe subscription deleted:', stripeSubscription.id);
+
+  await Subscription.update(
+    { status: 'cancelled', autoRenew: false },
+    { where: { stripeSubscriptionId: stripeSubscription.id } }
+  );
+}
+
 }
 
 export default new SubscriptionService();

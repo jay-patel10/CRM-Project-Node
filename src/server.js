@@ -34,6 +34,9 @@ app.use(cors({
   origin: FRONTEND_URL,
   credentials: true
 }));
+
+app.use('/subscriptions/stripe/webhook', express.raw({ type: 'application/json' }));
+
 app.use(express.json());
 app.use(morgan('dev')); // Logs all API requests
 

@@ -16,7 +16,8 @@ import {
   toggleAutoRenew,
   getAllSubscriptions,
   adminCancelSubscription,
-  adminToggleAutoRenew
+  adminToggleAutoRenew,
+  handleStripeWebhook
 } from '../controllers/subscriptionController.js';
 
 const router = express.Router();
@@ -57,5 +58,8 @@ router.delete('/admin/subscriptions/:id', adminCancelSubscription);
 
 // Admin toggle auto-renew for any user
 router.put('/admin/toggle-auto-renew', adminToggleAutoRenew);
+
+// Stripe webhook (MUST be BEFORE authenticate middleware!)
+router.post('/stripe/webhook', handleStripeWebhook);
 
 export default router;

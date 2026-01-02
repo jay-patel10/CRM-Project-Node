@@ -14,7 +14,7 @@ class ApiKeyService {
   static async getAllApiKeys({ userId, page = 1, limit = 10, search, isActive }) {
     const offset = (page - 1) * limit;
 
-    const where = { userId }; // Keep userId filter
+    const where = { userId };
 
     // Search filter
     if (search) {
@@ -60,12 +60,15 @@ class ApiKeyService {
   static async createApiKey({ userId, name, permissions, expiresAt }) {
     const key = this.generateKey();
 
+    // Convert empty string to null for optional expiry date
+    const expiryDate = expiresAt && expiresAt.trim() !== '' ? expiresAt : null;
+
     const apiKey = await ApiKey.create({
       userId,
       name,
       key,
       permissions,
-      expiresAt,
+      expiresAt: expiryDate,
       isActive: true
     });
 
@@ -84,7 +87,11 @@ class ApiKeyService {
 
     if (name) apiKey.name = name;
     if (permissions) apiKey.permissions = permissions;
-    if (expiresAt !== undefined) apiKey.expiresAt = expiresAt;
+    
+    // Handle expiry date - convert empty string to null
+    if (expiresAt !== undefined) {
+      apiKey.expiresAt = expiresAt && expiresAt.trim() !== '' ? expiresAt : null;
+    }
 
     await apiKey.save();
     return apiKey;

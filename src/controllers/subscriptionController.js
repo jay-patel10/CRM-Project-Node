@@ -2,8 +2,38 @@
 // FILE: src/controllers/subscriptionController.js (COMPLETE FILE)
 // ==========================================
 import subscriptionService from '../services/subscriptionService.js';
+import stripe from '../config/stripe.js';
 
 // ========== PLANS ==========
+export const handleStripeWebhook = async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  let event;
+
+  try {
+    // Verify webhook signature
+    event = stripe.webhooks.constructEvent(
+      req.body, // raw body (important!)
+      sig,
+      endpointSecret
+    );
+
+    console.log('📥 [Stripe] Webhook received:', event.type);
+  } catch (err) {
+    console.error('❌ [Stripe] Webhook signature verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  try {
+  await subscriptionService.handleStripeEvent(event);
+  res.json({ received: true });
+} catch (error) {
+  console.error('❌ [Stripe] Webhook processing failed:', error);
+  res.status(500).json({ success: false, message: error.message });
+}
+
+};
 
 export const getAllPlans = async (req, res) => {
   try {
